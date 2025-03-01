@@ -1,0 +1,31 @@
+name: compile source
+
+on: 
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
+      - name: install dependencies
+        run: sudo apt update && sudo apt upgrade && sudo apt install -y build-essential libncurses5-dev libncursesw5-dev
+
+      - name: compile hibou
+        run: |
+          mkdir -p bin
+          gcc src/hibou.c -o bin/hibou -lncurses
+
+      - name: upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: hibou
+          path: bin/hibou
