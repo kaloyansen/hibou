@@ -18,8 +18,26 @@ You can download the latest RPM from:
 
 Run the following command to install the package:
 
+  openSuse
 ```bash
 sudo zypper install ./hibou.rpm
+```
+
+  Fedora
+```bash
+sudo dnf install ./hibou.rpm
+```
+
+  CentOS
+```bash
+sudo yum install ./hibou.rpm
+```
+
+  Debian
+```bash
+sudo apt install alien
+sudo alien -d your-package.rpm
+sudo dpkg -i your-package.deb
 ```
 
 
@@ -27,8 +45,7 @@ sudo zypper install ./hibou.rpm
 
 ```bash
 git clone git@github.com:kaloyansen/hibou
-cd hibou
-mkdir bin
+cd hibou && mkdir bin
 gcc src/hibou.c -o bin/hibou -lncurses
 bin/hibou
 ```
