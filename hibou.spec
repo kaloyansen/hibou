@@ -17,14 +17,14 @@ hibou is a compact system resources monitoring tool using ncurses
 %setup -q
 
 %build
-gcc src/hibou.c -o bin/hibou -lncurses
+make
 
 %install
-mkdir -p %{buildroot}/usr/bin
-cp bin/hibou %{buildroot}/usr/bin/hibou
+mkdir -p %{buildroot}%{_bindir}
+cp bin/hibou %{buildroot}%{_bindir}/hibou
 
 %files
-/usr/bin/hibou
+%{_bindir}/hibou
 
 %changelog
 * Fri Feb 28 2025 Your Name <kaloyansen@gmail.com> - 1.0-1
