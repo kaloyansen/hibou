@@ -12,11 +12,11 @@ jobs:
   build-rpm:
     runs-on: ubuntu-latest
 
-    container: centos:latest
+    container: fedora:latest
 
     steps:
       - name: Install RPM Build Tools
-        run: sudo yum install -y rpm-build rpmdevtools make gcc ncurses-devel
+        run: sudo dnf install -y rpm-build rpmdevtools make gcc ncurses-devel
 
       - name: Checkout Code
         uses: actions/checkout@v4
