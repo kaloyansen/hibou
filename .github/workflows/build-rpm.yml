@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Install RPM Build Tools
-        run: sudo dnf install -y rpm-build rpmdevtools make gcc ncurses-devel
+        run: sudo yum install -y rpm-build rpmdevtools make gcc ncurses-devel
 
       - name: Checkout Code
         uses: actions/checkout@v4
