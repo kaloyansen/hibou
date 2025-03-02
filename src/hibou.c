@@ -5,21 +5,81 @@
 #include <ncurses.h>
 #include <time.h>
 #include <stdbool.h>
+#include <sys/statvfs.h>
 
-#define FPS 4
-#define WIN_WIDTH 20
+#define FPS 7
+#define WIN_WIDTH 40
 #define QUIT_KEY 'q'
 #define MEMINFO "/proc/meminfo"
 #define PROCSTAT "/proc/stat"
 #define PRESENT "/sys/devices/system/cpu/present"
 
-// structure to hold CPU statistics
-typedef struct {
+
+typedef struct { // structure to hold CPU statistics
      long user, nice, system, idle, iowait, irq, softirq, steal;
 } cpu_stats;
 
-// Function to estimate the number of CPU cores from /sys/devices/system/cpu
+
+typedef struct {
+
+     unsigned long total;
+     unsigned long free;
+} resource_info;
+
+
+typedef struct {
+    unsigned long rx_bytes; // Total received bytes
+    unsigned long tx_bytes; // Total transmitted bytes
+} NetTraffic;
+
+NetTraffic get_total_network_traffic() {
+    FILE *fp = fopen("/proc/net/dev", "r");
+    if (!fp) {
+        perror("Failed to open /proc/net/dev");
+        exit(1);
+    }
+
+    NetTraffic total_traffic = {0, 0};
+    char line[256], iface[32];
+
+    // Skip first two lines (headers)
+    fgets(line, sizeof(line), fp);
+    fgets(line, sizeof(line), fp);
+
+    // Read network interface data
+    while (fgets(line, sizeof(line), fp)) {
+        sscanf(line, "%31s %lu %*d %*d %*d %*d %*d %*d %*d %lu", iface, &total_traffic.rx_bytes, &total_traffic.tx_bytes);
+    }
+
+    fclose(fp);
+    return total_traffic;
+}
+
+
+double resource_usage(resource_info info) {
+
+     return 100.0 * (1 - (double)info.free / info.total);
+}
+
+
+resource_info get_storage(const char *path) {
+
+     struct statvfs fs;
+     resource_info info = {0, 0};
+
+     if (statvfs(path, &fs) != 0) {
+          perror("statvfs failed");
+          return info;
+     }
+
+     info.total = fs.f_blocks * fs.f_frsize;
+     info.free = fs.f_bfree * fs.f_frsize;
+     return info;
+}
+
+
 int get_num_cpus() {
+
      int num_cpus = 0;
      FILE *fp = fopen(PRESENT, "r");
      if (fp == NULL) {
@@ -92,24 +152,23 @@ double calculate_cpu_usage_for_core(cpu_stats *old_stats, cpu_stats *new_stats, 
 }
 
 
-double get_ram_usage() {
+resource_info get_ram() {
 
+     resource_info info = {0, 0};
      FILE *fp = fopen(MEMINFO, "r");
      if (fp == NULL) {
 
           perror("cannot open " MEMINFO);
-          return -1;
+          return info;
      }
 
      char line[256];
-     long total_memory = 0;
-     long free_memory = 0;
 
      while (fgets(line, sizeof(line), fp)) {
 
-          if (sscanf(line, "MemTotal: %ld kB", &total_memory) == 1) {
+          if (sscanf(line, "MemTotal: %ld kB", &info.total) == 1) {
 
-          } else if (sscanf(line, "MemFree: %ld kB", &free_memory) == 1) {
+          } else if (sscanf(line, "MemFree: %ld kB", &info.free) == 1) {
 
                break;
           }
@@ -117,11 +176,11 @@ double get_ram_usage() {
 
      fclose(fp);
 
-     if (total_memory == 0) {
-          return -1;  // Error if total memory was not found
+     if (info.total == 0) {
+          return info;
      }
 
-     return 100.0 * (1 - (double)free_memory / total_memory);  // Return RAM usage percentage
+     return info;
 }
 
 
@@ -175,7 +234,7 @@ int main() {
      struct timespec ts;
      ts.tv_sec = 0;
      ts.tv_nsec = 1e9 / FPS; 
-     WINDOW * win = newwin(num_cpus + 3, WIN_WIDTH, 3, 3);
+     WINDOW * win = newwin(num_cpus + 10, WIN_WIDTH, 3, 3);
      box(win, 0, 0);
      bool quit = false;
      while (!quit) {
@@ -191,15 +250,42 @@ int main() {
           }
 
           // wclear(win);
+          int c1 = 2;
+          int c2 = 20;
+          int c3 = 31;
+
+          mvwprintw(win, 1, c1, "resource");
+          mvwprintw(win, 1, c2, " size");
+          mvwprintw(win, 1, c3, "  usage");
 
           for (int i = 0; i < num_cpus; i++) {
 
                double usage = calculate_cpu_usage_for_core(old_stats, new_stats, i);
-               mvwprintw(win, i + 1, 2, "CPU%d %6.2f%%", i, usage);
+               mvwprintw(win, i + 3, c1, "CPU%d", i);
+               mvwprintw(win, i + 3, c3, "%6.2f%%", usage);
           }
 
-          double ram_usage = get_ram_usage();
-          mvwprintw(win, num_cpus + 1, 2, "RAM  %6.2f%%", ram_usage);
+          resource_info ram = get_ram();
+          resource_info storage_root = get_storage("/");
+          //resource_info storage_home = get_storage("/home");
+          
+          NetTraffic traffic = get_total_network_traffic();
+          
+          mvwprintw(win, num_cpus + 3, c1, "memory");
+          mvwprintw(win, num_cpus + 3, c2, "%4.1fG", (double)ram.total / 1024 / 1024);
+          mvwprintw(win, num_cpus + 3, c3, "%6.2f%%", resource_usage(ram));
+
+          mvwprintw(win, num_cpus + 4, c1, "/");
+          mvwprintw(win, num_cpus + 4, c2, "%4.1fG", (double)storage_root.total / 1e9);
+          mvwprintw(win, num_cpus + 4, c3, "%6.2f%%", resource_usage(storage_root));
+
+          mvwprintw(win, num_cpus + 5, c1, "traffic");
+          mvwprintw(win, num_cpus + 5, c2, "in");
+          mvwprintw(win, num_cpus + 5, c3, "%.2fMB", traffic.rx_bytes  / (1024.0 * 1024.0));
+
+          mvwprintw(win, num_cpus + 6, c1, "traffic");
+          mvwprintw(win, num_cpus + 6, c2, "out");
+          mvwprintw(win, num_cpus + 6, c3, "%.2fMB", traffic.tx_bytes  / (1024.0 * 1024.0));
 
           memcpy(old_stats, new_stats, num_cpus * sizeof(cpu_stats));
 

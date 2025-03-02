@@ -52,7 +52,7 @@ Mkfile.old
 dkms.conf
 
 # binary
-bin/hibou
+bin/
 
 #emacs backup
 *~
