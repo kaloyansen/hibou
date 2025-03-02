@@ -7,11 +7,16 @@
 #include <stdbool.h>
 #include <sys/statvfs.h>
 
-#define FPS 7
-#define WIN_WIDTH 40
+// ncurses
+#define FPS 6
+#define COL_WIDTH 11
+#define WIN_WIDTH 36
 #define QUIT_KEY 'q'
-#define MEMINFO "/proc/meminfo"
+
+// files
+#define PROCMEM "/proc/meminfo"
 #define PROCSTAT "/proc/stat"
+#define PROCNET "/proc/net/dev"
 #define PRESENT "/sys/devices/system/cpu/present"
 
 
@@ -30,25 +35,27 @@ typedef struct {
 typedef struct {
     unsigned long rx_bytes; // Total received bytes
     unsigned long tx_bytes; // Total transmitted bytes
-} NetTraffic;
+} traffic;
 
-NetTraffic get_total_network_traffic() {
-    FILE *fp = fopen("/proc/net/dev", "r");
+
+traffic get_total_network_traffic() {
+
+    FILE *fp = fopen(PROCNET, "r");
+    traffic total_traffic = {0, 0};
     if (!fp) {
-        perror("Failed to open /proc/net/dev");
-        exit(1);
+         
+        perror("cannot open " PROCNET);
+        return total_traffic;
     }
 
-    NetTraffic total_traffic = {0, 0};
     char line[256], iface[32];
 
     // Skip first two lines (headers)
     fgets(line, sizeof(line), fp);
     fgets(line, sizeof(line), fp);
-
-    // Read network interface data
     while (fgets(line, sizeof(line), fp)) {
-        sscanf(line, "%31s %lu %*d %*d %*d %*d %*d %*d %*d %lu", iface, &total_traffic.rx_bytes, &total_traffic.tx_bytes);
+
+         sscanf(line, "%31s %lu %*d %*d %*d %*d %*d %*d %*d %lu", iface, &total_traffic.rx_bytes, &total_traffic.tx_bytes);
     }
 
     fclose(fp);
@@ -102,7 +109,7 @@ int get_cpu_usage(cpu_stats *stats, int num_cpus) {
 
      FILE *fp = fopen(PROCSTAT, "r");
      if (fp == NULL) {
-          perror("Unable to open " PROCSTAT);
+          perror("cannot open " PROCSTAT);
           return -1;
      }
 
@@ -135,7 +142,7 @@ int get_cpu_usage(cpu_stats *stats, int num_cpus) {
 }
 
 
-double calculate_cpu_usage_for_core(cpu_stats *old_stats, cpu_stats *new_stats, int core_num) {
+double usage_per_core(cpu_stats *old_stats, cpu_stats *new_stats, int core_num) {
 
      if (core_num < 0) {
 
@@ -155,10 +162,10 @@ double calculate_cpu_usage_for_core(cpu_stats *old_stats, cpu_stats *new_stats, 
 resource_info get_ram() {
 
      resource_info info = {0, 0};
-     FILE *fp = fopen(MEMINFO, "r");
+     FILE *fp = fopen(PROCMEM, "r");
      if (fp == NULL) {
 
-          perror("cannot open " MEMINFO);
+          perror("cannot open " PROCMEM);
           return info;
      }
 
@@ -236,6 +243,23 @@ int main() {
      ts.tv_nsec = 1e9 / FPS; 
      WINDOW * win = newwin(num_cpus + 10, WIN_WIDTH, 3, 3);
      box(win, 0, 0);
+
+     int c1 = 2;
+     int c2 = c1 + COL_WIDTH;
+     int c3 = c2 + COL_WIDTH;
+     
+     const char * pform = "%9.2f%%"; 
+     const char * gform = "%9.2fG"; 
+     const char * mform = "%9.2fM"; 
+     const char * sform = "%9s"; 
+
+     mvwprintw(win, 1, c1, sform, "resource");
+     mvwprintw(win, 1, c2, sform, "size");
+     mvwprintw(win, 1, c3, sform, "usage");
+     mvwhline(win, 2, 1, ACS_HLINE, WIN_WIDTH - 2);
+     mvwhline(win, 5, 1, ACS_HLINE, WIN_WIDTH - 2);
+     mvwhline(win, num_cpus + 6, 1, ACS_HLINE, WIN_WIDTH - 2);
+
      bool quit = false;
      while (!quit) {
 
@@ -250,42 +274,34 @@ int main() {
           }
 
           // wclear(win);
-          int c1 = 2;
-          int c2 = 20;
-          int c3 = 31;
-
-          mvwprintw(win, 1, c1, "resource");
-          mvwprintw(win, 1, c2, " size");
-          mvwprintw(win, 1, c3, "  usage");
-
-          for (int i = 0; i < num_cpus; i++) {
-
-               double usage = calculate_cpu_usage_for_core(old_stats, new_stats, i);
-               mvwprintw(win, i + 3, c1, "CPU%d", i);
-               mvwprintw(win, i + 3, c3, "%6.2f%%", usage);
-          }
 
           resource_info ram = get_ram();
           resource_info storage_root = get_storage("/");
           //resource_info storage_home = get_storage("/home");
+          traffic net = get_total_network_traffic();
           
-          NetTraffic traffic = get_total_network_traffic();
-          
-          mvwprintw(win, num_cpus + 3, c1, "memory");
-          mvwprintw(win, num_cpus + 3, c2, "%4.1fG", (double)ram.total / 1024 / 1024);
-          mvwprintw(win, num_cpus + 3, c3, "%6.2f%%", resource_usage(ram));
+          mvwprintw(win, 3, c1, "memory");
+          mvwprintw(win, 3, c2, gform, (double)ram.total / 1024 / 1024);
+          mvwprintw(win, 3, c3, pform, resource_usage(ram));
 
-          mvwprintw(win, num_cpus + 4, c1, "/");
-          mvwprintw(win, num_cpus + 4, c2, "%4.1fG", (double)storage_root.total / 1e9);
-          mvwprintw(win, num_cpus + 4, c3, "%6.2f%%", resource_usage(storage_root));
+          mvwprintw(win, 4, c1, "storage(/)");
+          mvwprintw(win, 4, c2, gform, (double)storage_root.total / 1e9);
+          mvwprintw(win, 4, c3, pform, resource_usage(storage_root));
 
-          mvwprintw(win, num_cpus + 5, c1, "traffic");
-          mvwprintw(win, num_cpus + 5, c2, "in");
-          mvwprintw(win, num_cpus + 5, c3, "%.2fMB", traffic.rx_bytes  / (1024.0 * 1024.0));
+          for (int i = 0; i < num_cpus; i++) {
 
-          mvwprintw(win, num_cpus + 6, c1, "traffic");
-          mvwprintw(win, num_cpus + 6, c2, "out");
-          mvwprintw(win, num_cpus + 6, c3, "%.2fMB", traffic.tx_bytes  / (1024.0 * 1024.0));
+               double usage = usage_per_core(old_stats, new_stats, i);
+               mvwprintw(win, i + 6, c1, "CPU%d", i);
+               mvwprintw(win, i + 6, c3, pform, usage);
+          }
+
+          mvwprintw(win, num_cpus + 7, c1, "traffic");
+          mvwprintw(win, num_cpus + 7, c2, "in");
+          mvwprintw(win, num_cpus + 7, c3, mform, (double)net.rx_bytes  / 1024 / 1024);
+
+          mvwprintw(win, num_cpus + 8, c1, "traffic");
+          mvwprintw(win, num_cpus + 8, c2, "out");
+          mvwprintw(win, num_cpus + 8, c3, mform, (double)net.tx_bytes  / 1024 / 1024);
 
           memcpy(old_stats, new_stats, num_cpus * sizeof(cpu_stats));
 
