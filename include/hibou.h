@@ -23,6 +23,7 @@
 #define PRESENT "/sys/devices/system/cpu/present"
 
 typedef struct { // structure to hold CPU statistics
+
      long user, nice, system, idle, iowait, irq, softirq, steal;
 } cpu_stats;
 
@@ -33,6 +34,7 @@ typedef struct {
 } resource_info;
 
 typedef struct {
+
      unsigned long rx_bytes; // Total received bytes
      unsigned long tx_bytes; // Total transmitted bytes
 } traffic;
