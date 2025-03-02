@@ -1,65 +1,28 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <ncurses.h>
-#include <time.h>
-#include <stdbool.h>
-#include <sys/statvfs.h>
-
-// ncurses
-#define FPS 6
-#define COL_WIDTH 11
-#define WIN_WIDTH 36
-#define QUIT_KEY 'q'
-
-// files
-#define PROCMEM "/proc/meminfo"
-#define PROCSTAT "/proc/stat"
-#define PROCNET "/proc/net/dev"
-#define PRESENT "/sys/devices/system/cpu/present"
-
-
-typedef struct { // structure to hold CPU statistics
-     long user, nice, system, idle, iowait, irq, softirq, steal;
-} cpu_stats;
-
-
-typedef struct {
-
-     unsigned long total;
-     unsigned long free;
-} resource_info;
-
-
-typedef struct {
-    unsigned long rx_bytes; // Total received bytes
-    unsigned long tx_bytes; // Total transmitted bytes
-} traffic;
+#include "hibou.h"
 
 
 traffic get_total_network_traffic() {
 
-    FILE *fp = fopen(PROCNET, "r");
-    traffic total_traffic = {0, 0};
-    if (!fp) {
+     FILE *fp = fopen(PROCNET, "r");
+     traffic total_traffic = {0, 0};
+     if (!fp) {
          
-        perror("cannot open " PROCNET);
-        return total_traffic;
-    }
+          perror("cannot open " PROCNET);
+          return total_traffic;
+     }
 
-    char line[256], iface[32];
+     char line[256], iface[32];
 
-    // Skip first two lines (headers)
-    fgets(line, sizeof(line), fp);
-    fgets(line, sizeof(line), fp);
-    while (fgets(line, sizeof(line), fp)) {
+     // Skip first two lines (headers)
+     fgets(line, sizeof(line), fp);
+     fgets(line, sizeof(line), fp);
+     while (fgets(line, sizeof(line), fp)) {
 
-         sscanf(line, "%31s %lu %*d %*d %*d %*d %*d %*d %*d %lu", iface, &total_traffic.rx_bytes, &total_traffic.tx_bytes);
-    }
+          sscanf(line, "%31s %lu %*d %*d %*d %*d %*d %*d %*d %lu", iface, &total_traffic.rx_bytes, &total_traffic.tx_bytes);
+     }
 
-    fclose(fp);
-    return total_traffic;
+     fclose(fp);
+     return total_traffic;
 }
 
 
@@ -259,20 +222,17 @@ int main() {
      mvwhline(win, 2, 1, ACS_HLINE, WIN_WIDTH - 2);
      mvwhline(win, 5, 1, ACS_HLINE, WIN_WIDTH - 2);
      mvwhline(win, num_cpus + 6, 1, ACS_HLINE, WIN_WIDTH - 2);
+     mvwprintw(win, 3, c1, "memory");
+     mvwprintw(win, 4, c1, "storage(/)");
+     mvwprintw(win, num_cpus + 7, c1, "traffic");
+     mvwprintw(win, num_cpus + 7, c2, "<-");
+     mvwprintw(win, num_cpus + 8, c2, "->");
 
      bool quit = false;
      while (!quit) {
 
-          if (get_input_non_blocking() == QUIT_KEY) {
-
-               quit = true;
-          }
-
-          if (get_cpu_usage(new_stats, num_cpus) < 0) {
-
-               break;
-          }
-
+          if (get_input_non_blocking() == QUIT_KEY) { quit = true; }
+          if (get_cpu_usage(new_stats, num_cpus) < 0) { break; }
           // wclear(win);
 
           resource_info ram = get_ram();
@@ -280,14 +240,10 @@ int main() {
           //resource_info storage_home = get_storage("/home");
           traffic net = get_total_network_traffic();
           
-          mvwprintw(win, 3, c1, "memory");
           mvwprintw(win, 3, c2, gform, (double)ram.total / 1024 / 1024);
           mvwprintw(win, 3, c3, pform, resource_usage(ram));
-
-          mvwprintw(win, 4, c1, "storage(/)");
           mvwprintw(win, 4, c2, gform, (double)storage_root.total / 1e9);
           mvwprintw(win, 4, c3, pform, resource_usage(storage_root));
-
           for (int i = 0; i < num_cpus; i++) {
 
                double usage = usage_per_core(old_stats, new_stats, i);
@@ -295,16 +251,10 @@ int main() {
                mvwprintw(win, i + 6, c3, pform, usage);
           }
 
-          mvwprintw(win, num_cpus + 7, c1, "traffic");
-          mvwprintw(win, num_cpus + 7, c2, "in");
           mvwprintw(win, num_cpus + 7, c3, mform, (double)net.rx_bytes  / 1024 / 1024);
-
-          mvwprintw(win, num_cpus + 8, c1, "traffic");
-          mvwprintw(win, num_cpus + 8, c2, "out");
           mvwprintw(win, num_cpus + 8, c3, mform, (double)net.tx_bytes  / 1024 / 1024);
 
           memcpy(old_stats, new_stats, num_cpus * sizeof(cpu_stats));
-
           wrefresh(win);
           nanosleep(&ts, NULL);
      }

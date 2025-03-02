@@ -45,7 +45,7 @@ sudo dpkg -i your-package.deb
 
 ```bash
 git clone git@github.com:kaloyansen/hibou
-cd hibou && mkdir bin
-gcc src/hibou.c -o bin/hibou -lncurses
+cd hibou
+make
 bin/hibou
 ```
