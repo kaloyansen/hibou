@@ -12,7 +12,7 @@ jobs:
   build-rpm:
     runs-on: ubuntu-latest
 
-    container: fedora:latest
+    container: centos:latest
 
     steps:
       - name: Install RPM Build Tools
