@@ -25,7 +25,9 @@ jobs:
         run: rpmdev-setuptree && cp hibou.spec ~/rpmbuild/SPECS/.
 
       - name: Create Source Tarball
-        run: tar czvf ~/rpmbuild/SOURCES/hibou-1.0.tar.gz ../hibou
+        run: |
+          mkdir ../hibou-1.0 && cp -r * ../hibou-1.0/.
+          tar czvf ~/rpmbuild/SOURCES/hibou-1.0.tar.gz ../hibou-1.0
 
       - name: Build RPM Package
         run: rpmbuild -bb ~/rpmbuild/SPECS/hibou.spec
