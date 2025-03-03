@@ -20,7 +20,6 @@
 #define PROC_STAT "/proc/stat"
 #define PROC_MEMINFO "/proc/meminfo"
 #define PROC_NET_DEV "/proc/net/dev"
-#define SYS_DEVICES_SYSTEM_CPU_PRESENT "/sys/devices/system/cpu/present"
 
 typedef struct { // CPU statistics
 
@@ -34,7 +33,7 @@ typedef struct {
 } resource_info;
 
 void get_network_traffic(unsigned long long *, unsigned long long *);
-int get_num_cpus();
+int get_num_cores();
 int get_cpu_usage(cpu_stats *, int);
 int get_input_non_blocking();
 double resource_usage(resource_info);

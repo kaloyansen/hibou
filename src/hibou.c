@@ -3,8 +3,9 @@
 
 void get_network_traffic(unsigned long long *rx_bytes, unsigned long long *tx_bytes) {
 
-     FILE *fp = fopen(PROC_NET_DEV, "r");
+     FILE * fp = fopen(PROC_NET_DEV, "r");
      if (!fp) {
+
           perror("cannot open " PROC_NET_DEV);
           return;
      }
@@ -13,9 +14,8 @@ void get_network_traffic(unsigned long long *rx_bytes, unsigned long long *tx_by
      *rx_bytes = 0;
      *tx_bytes = 0;
 
-     fgets(line, sizeof(line), fp); // Skip first header
-     fgets(line, sizeof(line), fp); // Skip second header
-
+     fgets(line, sizeof(line), fp);
+     fgets(line, sizeof(line), fp);
      while (fgets(line, sizeof(line), fp)) {
 
           char iface[32];
@@ -53,28 +53,35 @@ resource_info get_storage(const char *path) {
      return info;
 }
 
+int get_num_cores() {
 
-int get_num_cpus() {
+     FILE * fp = fopen(PROC_STAT, "r");
+     if (!fp) {
 
-     int num_cpus = 0;
-     FILE *fp = fopen(SYS_DEVICES_SYSTEM_CPU_PRESENT, "r");
-     if (fp == NULL) {
-          perror("cannot open " SYS_DEVICES_SYSTEM_CPU_PRESENT);
+          perror("cannot open " PROC_STAT);
           return -1;
      }
 
      char line[256];
-     if (fgets(line, sizeof(line), fp)) {
-          // This will read a line like "0-3" for 4 cores (cpu0 to cpu3)
-          sscanf(line, "%d-%d", &num_cpus, &num_cpus);
-          num_cpus += 1;
+     int cores = 0;
+
+     while (fgets(line, sizeof(line), fp)) {
+
+          if (strncmp(line, "cpu", 3) == 0) {
+
+               if (line[3] == ' ' || line[3] == '\t')
+
+                    continue;
+               cores++;
+          }
      }
 
      fclose(fp);
-     return num_cpus;
+     return cores;
 }
 
-int get_cpu_usage(cpu_stats *stats, int num_cpus) {
+
+int get_cpu_usage(cpu_stats * stats, int num_cpus) {
 
      FILE *fp = fopen(PROC_STAT, "r");
      if (fp == NULL) {
@@ -85,10 +92,7 @@ int get_cpu_usage(cpu_stats *stats, int num_cpus) {
      char line[256];
      int cpu_count = 0;
 
-     // skip the first line which is the total CPU stats
      fgets(line, sizeof(line), fp);
-
-     // read stats for each core
      while (cpu_count < num_cpus && fgets(line, sizeof(line), fp)) {
 
           if (sscanf(line, "cpu%d %ld %ld %ld %ld %ld %ld %ld %ld",
@@ -180,7 +184,7 @@ int get_input_non_blocking() {
 int main() {
 
      cpu_stats *old_stats = NULL, *new_stats = NULL;
-     int num_cpus = get_num_cpus();
+     int num_cpus = get_num_cores();
      if (num_cpus < 0) {
 
           return -1;
@@ -260,7 +264,7 @@ int main() {
           for (int i = 0; i < num_cpus; i++) {
 
                double usage = usage_per_core(old_stats, new_stats, i);
-               mvwprintw(win, i + 6, c1, "CPU%d", i);
+               mvwprintw(win, i + 6, c1, "cpu %d", i);
                mvwprintw(win, i + 6, c3, pform, usage);
           }
 

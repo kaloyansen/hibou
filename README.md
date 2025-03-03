@@ -20,7 +20,7 @@ Run the following command to install the package:
 
   openSuse
 ```bash
-sudo zypper install ./hibou.rpm
+sudo zypper in ./hibou.rpm
 ```
 
   Fedora
@@ -36,12 +36,12 @@ sudo yum install ./hibou.rpm
   Debian
 ```bash
 sudo apt install alien
-sudo alien -d your-package.rpm
-sudo dpkg -i your-package.deb
+sudo alien -d hibou.rpm
+sudo dpkg -i hibou.deb
 ```
 
 
-## **Install from source**
+## **Install from source (recommended)**
 
 ```bash
 git clone git@github.com:kaloyansen/hibou
