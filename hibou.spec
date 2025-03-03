@@ -27,5 +27,5 @@ cp bin/hibou %{buildroot}%{_bindir}/hibou
 %{_bindir}/hibou
 
 %changelog
-* Fri Feb 28 2025 Your Name <kaloyansen@gmail.com> - 1.0-1
+* Fri Feb 28 2025 Kaloyan Krastev <kaloyansen@gmail.com> - 1.0-1
 - Initial RPM release

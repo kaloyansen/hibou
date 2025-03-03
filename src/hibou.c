@@ -1,34 +1,40 @@
 #include "hibou.h"
 
 
-traffic get_total_network_traffic() {
+void get_network_traffic(unsigned long long *rx_bytes, unsigned long long *tx_bytes) {
 
-     FILE *fp = fopen(PROCNET, "r");
-     traffic total_traffic = {0, 0};
+     FILE *fp = fopen(PROC_NET_DEV, "r");
      if (!fp) {
-         
-          perror("cannot open " PROCNET);
-          return total_traffic;
+          perror("cannot open " PROC_NET_DEV);
+          return;
      }
 
-     char line[256], iface[32];
+     char line[256];
+     *rx_bytes = 0;
+     *tx_bytes = 0;
 
-     // Skip first two lines (headers)
-     fgets(line, sizeof(line), fp);
-     fgets(line, sizeof(line), fp);
+     fgets(line, sizeof(line), fp); // Skip first header
+     fgets(line, sizeof(line), fp); // Skip second header
+
      while (fgets(line, sizeof(line), fp)) {
 
-          sscanf(line, "%31s %lu %*d %*d %*d %*d %*d %*d %*d %lu", iface, &total_traffic.rx_bytes, &total_traffic.tx_bytes);
+          char iface[32];
+          unsigned long long r_bytes, t_bytes;
+        
+          if (sscanf(line, " %31[^:]: %llu %*d %*d %*d %*d %*d %*d %*d %llu", iface, &r_bytes, &t_bytes) == 3) {
+
+               *rx_bytes += r_bytes;
+               *tx_bytes += t_bytes;
+          }
      }
 
      fclose(fp);
-     return total_traffic;
 }
 
 
 double resource_usage(resource_info info) {
 
-     return 100.0 * (1 - (double)info.free / info.total);
+     return 100.0 * (1 - (double)info.free / (double)info.total);
 }
 
 
@@ -51,9 +57,9 @@ resource_info get_storage(const char *path) {
 int get_num_cpus() {
 
      int num_cpus = 0;
-     FILE *fp = fopen(PRESENT, "r");
+     FILE *fp = fopen(SYS_DEVICES_SYSTEM_CPU_PRESENT, "r");
      if (fp == NULL) {
-          perror("cannot open " PRESENT);
+          perror("cannot open " SYS_DEVICES_SYSTEM_CPU_PRESENT);
           return -1;
      }
 
@@ -61,7 +67,7 @@ int get_num_cpus() {
      if (fgets(line, sizeof(line), fp)) {
           // This will read a line like "0-3" for 4 cores (cpu0 to cpu3)
           sscanf(line, "%d-%d", &num_cpus, &num_cpus);
-          num_cpus += 1;  // Ensure we count the number of cores (inclusive range)
+          num_cpus += 1;
      }
 
      fclose(fp);
@@ -70,9 +76,9 @@ int get_num_cpus() {
 
 int get_cpu_usage(cpu_stats *stats, int num_cpus) {
 
-     FILE *fp = fopen(PROCSTAT, "r");
+     FILE *fp = fopen(PROC_STAT, "r");
      if (fp == NULL) {
-          perror("cannot open " PROCSTAT);
+          perror("cannot open " PROC_STAT);
           return -1;
      }
 
@@ -105,7 +111,7 @@ int get_cpu_usage(cpu_stats *stats, int num_cpus) {
 }
 
 
-double usage_per_core(cpu_stats *old_stats, cpu_stats *new_stats, int core_num) {
+double usage_per_core(cpu_stats * old_stats, cpu_stats * new_stats, int core_num) {
 
      if (core_num < 0) {
 
@@ -125,10 +131,10 @@ double usage_per_core(cpu_stats *old_stats, cpu_stats *new_stats, int core_num) 
 resource_info get_ram() {
 
      resource_info info = {0, 0};
-     FILE *fp = fopen(PROCMEM, "r");
+     FILE *fp = fopen(PROC_MEMINFO, "r");
      if (fp == NULL) {
 
-          perror("cannot open " PROCMEM);
+          perror("cannot open " PROC_MEMINFO);
           return info;
      }
 
@@ -196,6 +202,9 @@ int main() {
           return -1;
      }
 
+     unsigned long long rx_prev, tx_prev, rx_curr, tx_curr, tx_diff, rx_diff;
+
+     get_network_traffic(&rx_prev, &tx_prev);
      // ncurses
      initscr();
      cbreak();
@@ -213,7 +222,7 @@ int main() {
      
      const char * pform = "%9.2f%%"; 
      const char * gform = "%9.2fG"; 
-     const char * mform = "%9.2fM"; 
+     const char * mform = "%9.4f Mb/s"; 
      const char * sform = "%9s"; 
 
      mvwprintw(win, 1, c1, sform, "resource");
@@ -233,12 +242,16 @@ int main() {
 
           if (get_input_non_blocking() == QUIT_KEY) { quit = true; }
           if (get_cpu_usage(new_stats, num_cpus) < 0) { break; }
+
+          get_network_traffic(&rx_curr, &tx_curr);
+
+          rx_diff = rx_curr - rx_prev;
+          tx_diff = tx_curr - tx_prev;
           // wclear(win);
 
           resource_info ram = get_ram();
           resource_info storage_root = get_storage("/");
           //resource_info storage_home = get_storage("/home");
-          traffic net = get_total_network_traffic();
           
           mvwprintw(win, 3, c2, gform, (double)ram.total / 1024 / 1024);
           mvwprintw(win, 3, c3, pform, resource_usage(ram));
@@ -251,10 +264,13 @@ int main() {
                mvwprintw(win, i + 6, c3, pform, usage);
           }
 
-          mvwprintw(win, num_cpus + 7, c3, mform, (double)net.rx_bytes  / 1024 / 1024);
-          mvwprintw(win, num_cpus + 8, c3, mform, (double)net.tx_bytes  / 1024 / 1024);
+          mvwprintw(win, num_cpus + 7, c3 - 4, mform, ((double)rx_diff * 8.0) / 1024 / 1024);
+          mvwprintw(win, num_cpus + 8, c3 - 4, mform, ((double)tx_diff * 8.0) / 1024 / 1024);
 
           memcpy(old_stats, new_stats, num_cpus * sizeof(cpu_stats));
+          rx_prev = rx_curr;
+          tx_prev = tx_curr;
+
           wrefresh(win);
           nanosleep(&ts, NULL);
      }
