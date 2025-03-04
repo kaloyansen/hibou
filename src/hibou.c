@@ -49,7 +49,8 @@ resource_info get_storage(const char *path) {
      }
 
      info.total = fs.f_blocks * fs.f_frsize;
-     info.free = fs.f_bfree * fs.f_frsize;
+     //info.free = fs.f_bfree * fs.f_frsize;
+     info.free = fs.f_bavail * fs.f_frsize;
      return info;
 }
 
@@ -148,7 +149,7 @@ resource_info get_ram() {
 
           if (sscanf(line, "MemTotal: %ld kB", &info.total) == 1) {
 
-          } else if (sscanf(line, "MemFree: %ld kB", &info.free) == 1) {
+          } else if (sscanf(line, "MemAvailable: %ld kB", &info.free) == 1) {
 
                break;
           }
