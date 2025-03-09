@@ -11,7 +11,7 @@
 #include <sys/statvfs.h>
 
 // ncurses
-#define FPS 6
+#define FPS 1
 #define COL_WIDTH 11
 #define WIN_WIDTH 36
 #define QUIT_KEY 'q'
